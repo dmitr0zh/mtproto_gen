@@ -5,10 +5,8 @@ from starlette.middleware.sessions import SessionMiddleware
 
 import subprocess
 import config
-# =========================
-# CONFIG
-# =========================
 
+# CONFIG
 ADMIN_USER = config.user
 ADMIN_PASSWORD = config.psw
 
@@ -19,10 +17,7 @@ SECRET_KEY = "ee808b414bea0425b3d46c6dcc40a8d152646f636b65722e636f6d"
 
 SECRETS_FILE = "/opt/mtproxymax/secrets.conf"
 
-# =========================
 # APP
-# =========================
-
 app = FastAPI()
 
 app.add_middleware(
@@ -32,18 +27,12 @@ app.add_middleware(
 
 templates = Jinja2Templates(directory="templates")
 
-# =========================
 # AUTH
-# =========================
-
 def require_auth(request: Request):
     if not request.session.get("auth"):
         return RedirectResponse("/login", status_code=303)
 
-# =========================
 # MTProxyMax
-# =========================
-
 def load_users():
     users = []
 
@@ -90,10 +79,7 @@ def run_cmd(cmd):
         stderr=subprocess.DEVNULL
     )
 
-# =========================
 # LOGIN
-# =========================
-
 @app.get("/login")
 def login_page(request: Request):
 
@@ -127,10 +113,7 @@ def logout(request: Request):
 
     return RedirectResponse("/login", status_code=303)
 
-# =========================
 # INDEX
-# =========================
-
 @app.get("/")
 def index(request: Request):
 
@@ -147,10 +130,7 @@ def index(request: Request):
         }
     )
 
-# =========================
 # CREATE
-# =========================
-
 @app.post("/create")
 def create(
     request: Request,
@@ -164,10 +144,7 @@ def create(
 
     return RedirectResponse("/", status_code=303)
 
-# =========================
 # DISABLE
-# =========================
-
 @app.get("/disable/{name}")
 def disable(request: Request, name: str):
 
@@ -178,10 +155,8 @@ def disable(request: Request, name: str):
 
     return RedirectResponse("/", status_code=303)
 
-# =========================
-# ENABLE
-# =========================
 
+# ENABLE
 @app.get("/enable/{name}")
 def enable(request: Request, name: str):
 
@@ -192,10 +167,7 @@ def enable(request: Request, name: str):
 
     return RedirectResponse("/", status_code=303)
 
-# =========================
 # DELETE
-# =========================
-
 @app.get("/delete/{name}")
 def delete(request: Request, name: str):
 
