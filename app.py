@@ -2,27 +2,50 @@ from fastapi import FastAPI, Request, Form
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
-
 import subprocess
 import config
+import re
+import os
 
 # CONFIG
 ADMIN_USER = config.user
 ADMIN_PASSWORD = config.psw
 
-DOMAIN = "zubmp.hopto.org"
+DOMAIN = "://onthewifi.com"
 PORT = "443"
-
-SECRET_KEY = "ee808b414bea0425b3d46c6dcc40a8d152646f636b65722e636f6d"
-
 SECRETS_FILE = "/opt/mtproxymax/secrets.conf"
+
+# Функция для получения ключа по имени пользователя
+def get_user_secret(username: str) -> str:
+    try:
+        with open(SECRETS_FILE, "r") as f:
+            for line in f:
+                # Очищаем строку от пробелов и переносов
+                line = line.strip()
+                if not line:
+                    continue
+                
+                # Разбиваем строку по вертикальной черте
+                parts = line.split("|")
+                
+                # Проверяем, совпадает ли имя пользователя (без учета регистра)
+                if parts[0].lower() == username.lower():
+                    return parts[1]  # Возвращаем хэш-секрет
+    except Exception as e:
+        print(f"Ошибка чтения файла: {e}")
+    
+    # Если пользователя нет или произошла ошибка, возвращаем нули
+    return "00000000000000000000000000000000"
+
+TARGET_USER = "ONE"
+SECRET_KEY_TG = get_user_secret(TARGET_USER)
 
 # APP
 app = FastAPI()
 
 app.add_middleware(
     SessionMiddleware,
-    secret_key=SECRET_KEY
+    secret_key=SECRET_KEY_TG
 )
 
 templates = Jinja2Templates(directory="templates")
@@ -65,7 +88,7 @@ def load_users():
                 "active": enabled == "true",
                 "max_conn": max_conn,
                 "max_ips": max_ips,
-                "link": f"tg://proxy?server={DOMAIN}&port={PORT}&secret=ee{secret}646f636b65722e636f6d"
+                "link": f"tg://proxy?server={DOMAIN}&port={PORT}&secret=ee{secret}7477697463682e7476"
             })
 
     return users
