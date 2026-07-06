@@ -4,41 +4,54 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 import subprocess
 import config
-import re
+import subprocess
+import binascii
 import os
 
 # CONFIG
 ADMIN_USER = config.user
 ADMIN_PASSWORD = config.psw
 
+# --- Настройки сервера ---
+PREFIX = "ee"
 DOMAIN = "://onthewifi.com"
 PORT = "443"
-SECRETS_FILE = "/opt/mtproxymax/secrets.conf"
 
-# Функция для получения ключа по имени пользователя
-def get_user_secret(username: str) -> str:
+def get_postfix_from_system() -> str:
+    """Запрашивает домен у системы и переводит его в Hex"""
     try:
-        with open(SECRETS_FILE, "r") as f:
-            for line in f:
-                # Очищаем строку от пробелов и переносов
-                line = line.strip()
-                if not line:
-                    continue
-                
-                # Разбиваем строку по вертикальной черте
-                parts = line.split("|")
-                
-                # Проверяем, совпадает ли имя пользователя (без учета регистра)
-                if parts[0].lower() == username.lower():
-                    return parts[1]  # Возвращаем хэш-секрет
-    except Exception as e:
-        print(f"Ошибка чтения файла: {e}")
-    
-    # Если пользователя нет или произошла ошибка, возвращаем нули
-    return "00000000000000000000000000000000"
+        result = subprocess.run(["mtproxymax", "domain", "get"], capture_output=True, text=True, check=True)
+        return binascii.hexlify(result.stdout.strip().encode('utf-8')).decode('utf-8')
+    except Exception:
+        return None  # Резервный twitch.tv, если CLI недоступен
 
+def get_user_secret(username: str) -> str:
+    """Ищет в файле и возвращает чистый 32-значный секрет"""
+    file_path = "/opt/mtproxymax/secrets.conf"
+    if not os.path.exists(file_path):
+        return ""
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("#") or not line.strip():
+                    continue
+                parts = line.strip().split("|")
+                if parts.lower() == username.lower():
+                    return parts # Возвращаем только 32 символа из базы
+    except Exception:
+        pass
+    return ""
+
+# --- ВАШ БЛОК КОДА ---
 TARGET_USER = "ONE"
-SECRET_KEY_TG = get_user_secret(TARGET_USER)
+raw_secret = get_user_secret(TARGET_USER)
+
+# Собираем полный секрет для Telegram (ee + 32 символа + hex домена)
+if raw_secret:
+    SECRET_KEY_TG = PREFIX + raw_secret + get_postfix_from_system()
+else:
+    SECRET_KEY_TG = None
+    print(f"Пользователь {TARGET_USER} не найден!")
 
 # APP
 app = FastAPI()
@@ -58,8 +71,8 @@ def require_auth(request: Request):
 # MTProxyMax
 def load_users():
     users = []
-
-    with open(SECRETS_FILE, "r") as f:
+    file_path = "/opt/mtproxymax/secrets.conf"
+    with open(file_path, "r") as f:
 
         for line in f:
 
@@ -88,7 +101,7 @@ def load_users():
                 "active": enabled == "true",
                 "max_conn": max_conn,
                 "max_ips": max_ips,
-                "link": f"tg://proxy?server={DOMAIN}&port={PORT}&secret=ee{secret}7477697463682e7476"
+                "link": f"tg://proxy?server={DOMAIN}&port={PORT}&secret={PREFIX}{secret}{get_postfix_from_system()}"
             })
 
     return users
