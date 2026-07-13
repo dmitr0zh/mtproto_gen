@@ -7,6 +7,7 @@ import config
 import subprocess
 import binascii
 import os
+import time
 
 # CONFIG
 ADMIN_USER = config.user
@@ -14,19 +15,19 @@ ADMIN_PASSWORD = config.psw
 
 # --- Настройки сервера ---
 PREFIX = "ee"
-DOMAIN = "://onthewifi.com"
+DOMAIN = "80.85.241.26"
 PORT = "443"
 
-def get_postfix_from_system() -> str:
-    """Запрашивает домен у системы и переводит его в Hex"""
+#Домен для обфускации и его перевод в HEX
+def get_postfix_from_system() -> str: 
     try:
-        result = subprocess.run(["mtproxymax", "domain", "get"], capture_output=True, text=True, check=True)
+        result = subprocess.run(["mtproxymax", "domain", "get"], capture_output=True, text=True, check=True) #Запрос домена в MTPROXYMAX
         return binascii.hexlify(result.stdout.strip().encode('utf-8')).decode('utf-8')
     except Exception:
-        return None  # Резервный twitch.tv, если CLI недоступен
+        return None
 
 def get_user_secret(username: str) -> str:
-    """Ищет в файле и возвращает чистый 32-значный секрет"""
+    #Ищет в файле и возвращает чистый 32-значный секрет
     file_path = "/opt/mtproxymax/secrets.conf"
     if not os.path.exists(file_path):
         return ""
@@ -42,16 +43,15 @@ def get_user_secret(username: str) -> str:
         pass
     return ""
 
-# --- ВАШ БЛОК КОДА ---
+# БЛОК КОДА
 TARGET_USER = "ONE"
 raw_secret = get_user_secret(TARGET_USER)
-
+ 
 # Собираем полный секрет для Telegram (ee + 32 символа + hex домена)
 if raw_secret:
     SECRET_KEY_TG = PREFIX + raw_secret + get_postfix_from_system()
 else:
     SECRET_KEY_TG = None
-    print(f"Пользователь {TARGET_USER} не найден!")
 
 # APP
 app = FastAPI()
@@ -214,4 +214,29 @@ def delete(request: Request, name: str):
         f'printf "yes\n" | mtproxymax secret remove {name}'
     )
 
+    return RedirectResponse("/", status_code=303)
+
+#Limits
+@app.post("/limit/{name}")
+def limit(
+    request: Request, 
+    name: str, 
+    ips: int = Form(...), 
+    conn: int = Form(...)
+):
+    if redirect := require_auth(request):
+        return redirect
+    cmd_ips = f'echo "yes" | mtproxymax secret setlimit {name} ips {ips}'
+    cmd_conn = f'echo "yes" | mtproxymax secret setlimit {name} conns {conn}'
+    
+    # Запускаем в реальном shell и выводим логи в терминал сервера для дебага
+    print(f"--- Установка лимитов для {name} ---")
+    res_ips = subprocess.run(cmd_ips, shell=True, capture_output=True, text=True)
+    print(f"Ответ mtproxy (IPS): {res_ips.stdout.strip()} {res_ips.stderr.strip()}")
+    
+    res_conn = subprocess.run(cmd_conn, shell=True, capture_output=True, text=True)
+    print(f"Ответ mtproxy (CONN): {res_conn.stdout.strip()} {res_conn.stderr.strip()}")
+    print("-----------------------------------")
+    
+    # Делаем редирект, чтобы страница обновилась
     return RedirectResponse("/", status_code=303)
