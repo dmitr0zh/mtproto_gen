@@ -15,7 +15,7 @@ ADMIN_PASSWORD = config.psw
 
 # --- Настройки сервера ---
 PREFIX = "ee"
-DOMAIN = "80.85.241.26"
+DOMAIN = "IP"
 PORT = "443"
 
 #Домен для обфускации и его перевод в HEX
